@@ -38,7 +38,9 @@ class TestBuildFieldMapRZ:
         _, bmag = _build_heatmap_rz(R_M, L_M, NI, MU_R, N_GRID, LABEL)
         assert isinstance(bmag, np.ndarray)
         assert bmag.ndim == 2
-        assert bmag.shape == (N_GRID, N_GRID)
+        # Rows = N_GRID (z), cols = mirrored x-axis: 2*(N_GRID//2) - 1
+        n_half = N_GRID // 2
+        assert bmag.shape == (N_GRID, 2 * n_half - 1)
 
     def test_b_mag_non_negative(self):
         """All field magnitudes should be non-negative."""

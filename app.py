@@ -521,22 +521,33 @@ def _toggle_zslice_row(view):
 # ---------------------------------------------------------------------------
 
 def _build_heatmap_rz(R_m, L_m, NI, mu_r, n_grid, label):
-    """Build a dark-themed Plotly figure with r-z field magnitude heatmap."""
+    """Build a dark-themed Plotly figure with r-z field magnitude heatmap.
+
+    Mirrors the axisymmetric field about r=0 so the solenoid cross-section
+    is centred at the origin.
+    """
     rmax = R_m * 8
     zmax = L_m * 3
 
-    r_arr = np.linspace(0, rmax, n_grid)
+    # Compute on positive-r half (axisymmetric)
+    n_half = n_grid // 2
+    r_arr = np.linspace(0, rmax, n_half)
     z_arr = np.linspace(-zmax, zmax, n_grid)
 
     Br, Bz, B_mag = compute_field_grid(r_arr, z_arr, R_m, L_m, NI, mu_r)
 
-    r_mm = r_arr * 1e3
+    # Mirror to full x-axis: negative-r (flipped) + positive-r
+    # Br flips sign on the negative side; Bz and B_mag are symmetric
+    x_mm = np.concatenate([-r_arr[::-1], r_arr[1:]]) * 1e3
     z_mm = z_arr * 1e3
+    B_mag_full = np.concatenate([B_mag[:, ::-1], B_mag[:, 1:]], axis=1)
+    Br_full = np.concatenate([-Br[:, ::-1], Br[:, 1:]], axis=1)
+    Bz_full = np.concatenate([Bz[:, ::-1], Bz[:, 1:]], axis=1)
 
     fig = go.Figure()
 
     fig.add_trace(go.Heatmap(
-        x=r_mm, y=z_mm, z=B_mag,
+        x=x_mm, y=z_mm, z=B_mag_full,
         colorscale=FIELD_COLORSCALE,
         colorbar=dict(
             title=dict(text="|B| (T)", font=dict(color="#64748b", size=11)),
@@ -546,7 +557,7 @@ def _build_heatmap_rz(R_m, L_m, NI, mu_r, n_grid, label):
             len=0.8,
         ),
         hovertemplate=(
-            "<b style='color:#00e5b0'>r</b> = %{x:.1f} mm<br>"
+            "<b style='color:#00e5b0'>x</b> = %{x:.1f} mm<br>"
             "<b style='color:#00e5b0'>z</b> = %{y:.1f} mm<br>"
             "<b style='color:#f0b429'>|B|</b> = %{z:.4e} T"
             "<extra></extra>"
@@ -554,37 +565,39 @@ def _build_heatmap_rz(R_m, L_m, NI, mu_r, n_grid, label):
     ))
 
     # Quiver arrows
-    skip = max(1, n_grid // 12)
-    for i in range(0, n_grid, skip):
-        for j in range(0, n_grid, skip):
-            mag = np.sqrt(Br[i, j]**2 + Bz[i, j]**2)
+    n_full = len(x_mm)
+    skip = max(1, n_full // 12)
+    skip_z = max(1, n_grid // 12)
+    arrow_scale = min(rmax * 1e3 * 0.06, zmax * 1e3 * 0.06)
+    for i in range(0, n_grid, skip_z):
+        for j in range(0, n_full, skip):
+            mag = np.sqrt(Br_full[i, j]**2 + Bz_full[i, j]**2)
             if mag < 1e-20:
                 continue
-            arrow_scale = min(rmax * 1e3 * 0.06, zmax * 1e3 * 0.06)
-            dr = Br[i, j] / mag * arrow_scale
-            dz = Bz[i, j] / mag * arrow_scale
+            dx = Br_full[i, j] / mag * arrow_scale
+            dz = Bz_full[i, j] / mag * arrow_scale
             fig.add_annotation(
-                x=r_mm[j] + dr, y=z_mm[i] + dz,
-                ax=r_mm[j], ay=z_mm[i],
+                x=x_mm[j] + dx, y=z_mm[i] + dz,
+                ax=x_mm[j], ay=z_mm[i],
                 xref="x", yref="y", axref="x", ayref="y",
                 showarrow=True,
                 arrowhead=2, arrowsize=1, arrowwidth=1.2,
                 arrowcolor="rgba(255,255,255,0.35)",
             )
 
-    # Solenoid outline
+    # Solenoid outline centred at origin
     R_mm = R_m * 1e3
     L_mm = L_m * 1e3
     fig.add_shape(
         type="rect",
-        x0=0, y0=-L_mm / 2, x1=R_mm, y1=L_mm / 2,
+        x0=-R_mm, y0=-L_mm / 2, x1=R_mm, y1=L_mm / 2,
         line=dict(color="#00e5b0", width=2, dash="dash"),
     )
 
     fig.update_layout(
         title=dict(text=label, font=dict(size=12, color="#dfe6f0",
                    family="IBM Plex Mono, monospace")),
-        xaxis_title="r (mm)",
+        xaxis_title="x (mm)",
         yaxis_title="z (mm)",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#0b1120",
@@ -596,7 +609,7 @@ def _build_heatmap_rz(R_m, L_m, NI, mu_r, n_grid, label):
         margin=dict(l=60, r=20, t=40, b=50),
     )
 
-    return fig, B_mag
+    return fig, B_mag_full
 
 
 def _build_heatmap_xy(R_m, L_m, NI, mu_r, n_grid, z_slice_m, label):
@@ -788,11 +801,11 @@ def _probe(click_a, click_b, params):
     view = params["view"]
 
     if view == "rz":
-        r_m = coord1 * 1e-3
+        x_m = coord1 * 1e-3
         z_m = coord2 * 1e-3
-        res_a = compute_field(r_m, 0.0, z_m, R_m, L_m, NI, mu_r_a)
-        res_b = compute_field(r_m, 0.0, z_m, R_m, L_m, NI, mu_r_b)
-        loc_str = f"r = {coord1:.1f} mm  \u00b7  z = {coord2:.1f} mm"
+        res_a = compute_field(x_m, 0.0, z_m, R_m, L_m, NI, mu_r_a)
+        res_b = compute_field(x_m, 0.0, z_m, R_m, L_m, NI, mu_r_b)
+        loc_str = f"x = {coord1:.1f} mm  \u00b7  z = {coord2:.1f} mm"
     else:
         x_m = coord1 * 1e-3
         y_m = coord2 * 1e-3
