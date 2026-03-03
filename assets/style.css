@@ -1,0 +1,294 @@
+/* ============================================================
+   emcoil — Precision Instrument Theme
+   Inspired by oscilloscopes, spectrum analyzers, and flight decks
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+    --bg-deep:       #060a13;
+    --bg-primary:    #0b1120;
+    --bg-panel:      #111a2e;
+    --bg-surface:    #162036;
+    --bg-elevated:   #1c2940;
+    --bg-hover:      #243352;
+
+    --accent:        #00e5b0;
+    --accent-dim:    #00b38a;
+    --accent-glow:   rgba(0, 229, 176, 0.15);
+    --accent-glow-s: rgba(0, 229, 176, 0.06);
+
+    --data-amber:    #f0b429;
+    --data-amber-d:  rgba(240, 180, 41, 0.12);
+    --data-red:      #ff6b6b;
+    --data-blue:     #63b3ed;
+
+    --text:          #dfe6f0;
+    --text-dim:      #8494a7;
+    --text-muted:    #506380;
+    --border:        #1a2744;
+    --border-active: #2a4060;
+
+    --font-data:     'IBM Plex Mono', 'Consolas', monospace;
+    --font-ui:       'DM Sans', system-ui, sans-serif;
+
+    --radius:        6px;
+    --radius-lg:     10px;
+}
+
+/* ---- Reset & Base ---- */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 229, 176, 0.04), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(99, 179, 237, 0.03), transparent);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ---- Scanline texture overlay ---- */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* ---- Typography ---- */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ---- Dash Slider Override ---- */
+.rc-slider { height: 20px !important; padding: 7px 0 !important; }
+.rc-slider-rail {
+    background: var(--bg-surface) !important;
+    height: 4px !important;
+    border-radius: 2px !important;
+}
+.rc-slider-track {
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent)) !important;
+    height: 4px !important;
+    border-radius: 2px !important;
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+.rc-slider-handle {
+    background: var(--accent) !important;
+    border: 2px solid var(--bg-panel) !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin-top: -6px !important;
+    box-shadow: 0 0 10px rgba(0, 229, 176, 0.3) !important;
+    opacity: 1 !important;
+}
+.rc-slider-handle:hover,
+.rc-slider-handle:active,
+.rc-slider-handle-dragging {
+    box-shadow: 0 0 16px rgba(0, 229, 176, 0.5) !important;
+}
+.rc-slider-tooltip { display: none !important; }
+
+/* ---- Dash Dropdown Override ---- */
+.Select-control,
+.Select--single > .Select-control,
+.VirtualizedSelectOption {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    font-family: var(--font-data) !important;
+    font-size: 13px !important;
+    border-radius: var(--radius) !important;
+}
+.Select-menu-outer {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-active) !important;
+    border-radius: var(--radius) !important;
+    margin-top: 2px !important;
+}
+.VirtualizedSelectOption {
+    color: var(--text-dim) !important;
+}
+.VirtualizedSelectFocusedOption {
+    background: var(--accent-glow) !important;
+    color: var(--accent) !important;
+}
+.Select-value-label {
+    color: var(--accent) !important;
+    font-family: var(--font-data) !important;
+}
+.Select-placeholder {
+    color: var(--text-muted) !important;
+}
+.Select-arrow-zone .Select-arrow {
+    border-top-color: var(--text-muted) !important;
+}
+
+/* ---- Dash Input Override ---- */
+input[type="number"] {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--data-amber) !important;
+    font-family: var(--font-data) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    padding: 6px 10px !important;
+    border-radius: var(--radius) !important;
+    outline: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    text-align: right !important;
+}
+input[type="number"]:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-glow), 0 0 12px var(--accent-glow) !important;
+}
+
+/* ---- Radio Items ---- */
+.dcc-radio-item label {
+    cursor: pointer;
+}
+
+/* ---- Loading Spinner ---- */
+._dash-loading-callback {
+    background: transparent !important;
+}
+.dash-spinner {
+    border-top-color: var(--accent) !important;
+}
+
+/* ---- Plotly Chart Dark Overrides ---- */
+.js-plotly-plot .plotly .modebar {
+    background: transparent !important;
+}
+.js-plotly-plot .plotly .modebar-btn path {
+    fill: var(--text-muted) !important;
+}
+.js-plotly-plot .plotly .modebar-btn:hover path {
+    fill: var(--accent) !important;
+}
+
+/* ---- Utility Classes ---- */
+.panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    position: relative;
+}
+.panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+}
+
+.panel-label {
+    font-family: var(--font-data);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.data-value {
+    font-family: var(--font-data);
+    font-weight: 500;
+    color: var(--data-amber);
+}
+
+/* ---- Probe Table ---- */
+.probe-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-family: var(--font-data);
+    font-size: 13px;
+}
+.probe-table th {
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+.probe-table th:first-child {
+    border-radius: var(--radius) 0 0 0;
+}
+.probe-table th:last-child {
+    border-radius: 0 var(--radius) 0 0;
+}
+.probe-table td {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+}
+.probe-table tr:hover td {
+    background: var(--accent-glow-s);
+}
+.probe-table .val-a {
+    color: var(--accent);
+    font-weight: 500;
+    text-align: right;
+}
+.probe-table .val-b {
+    color: var(--data-amber);
+    font-weight: 500;
+    text-align: right;
+}
+.probe-table .field-label {
+    color: var(--text);
+    font-weight: 400;
+}
+
+/* ---- Animations ---- */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 15px rgba(0, 229, 176, 0.15); }
+    50%      { box-shadow: 0 0 25px rgba(0, 229, 176, 0.3); }
+}
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
