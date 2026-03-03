@@ -163,6 +163,62 @@ app.layout = html.Div(style={"fontFamily": "Arial, sans-serif", "maxWidth": "140
 
 
 # ---------------------------------------------------------------------------
+# Callbacks: slider <-> input sync
+# ---------------------------------------------------------------------------
+
+for _pair in SLIDER_INPUT_PAIRS:
+    _p = _pair["prefix"]
+
+    @callback(
+        Output(f"{_p}-input", "value"),
+        Input(f"{_p}-slider", "value"),
+        prevent_initial_call=True,
+    )
+    def _sync_slider_to_input(val, _prefix=_p):  # noqa: E303
+        return val
+
+    @callback(
+        Output(f"{_p}-slider", "value"),
+        Input(f"{_p}-input", "value"),
+        prevent_initial_call=True,
+    )
+    def _sync_input_to_slider(val, _prefix=_p):  # noqa: E303
+        return val
+
+
+# ---------------------------------------------------------------------------
+# Callbacks: show/hide custom mu_r
+# ---------------------------------------------------------------------------
+
+for _suffix in ("A", "B"):
+
+    @callback(
+        Output(f"custom-mu-row-{_suffix}", "style"),
+        Input(f"material-{_suffix}", "value"),
+    )
+    def _toggle_custom_mu(material, _s=_suffix):  # noqa: E303
+        if material == "custom":
+            return {"display": "block", "marginTop": "8px"}
+        return {"display": "none", "marginTop": "8px"}
+
+
+# ---------------------------------------------------------------------------
+# Callback: show/hide z-slice row based on view selection
+# ---------------------------------------------------------------------------
+
+@callback(
+    Output("zslice-row", "style"),
+    Input("view-radio", "value"),
+)
+def _toggle_zslice_row(view):
+    if view == "xy":
+        return {"display": "flex", "alignItems": "center",
+                "gap": "10px", "marginBottom": "10px"}
+    return {"display": "none", "alignItems": "center",
+            "gap": "10px", "marginBottom": "10px"}
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
