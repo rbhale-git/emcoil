@@ -424,6 +424,85 @@ def _compute(n_clicks, radius_mm, length_mm, ampturns,
 
 
 # ---------------------------------------------------------------------------
+# Callback: Click-to-probe
+# ---------------------------------------------------------------------------
+
+@callback(
+    Output("probe-readout", "children"),
+    Input("field-map-A", "clickData"),
+    Input("field-map-B", "clickData"),
+    State("shared-params-store", "data"),
+    prevent_initial_call=True,
+)
+def _probe(click_a, click_b, params):
+    """Probe field at clicked point on either map and show side-by-side readout."""
+    if params is None:
+        return no_update
+
+    # Determine which click fired
+    click = click_a or click_b
+    if click is None:
+        return no_update
+
+    point = click["points"][0]
+    coord1 = point["x"]  # r or x in mm
+    coord2 = point["y"]  # z or y in mm
+
+    R_m = params["R_m"]
+    L_m = params["L_m"]
+    NI = params["NI"]
+    mu_r_a = params["mu_r_a"]
+    mu_r_b = params["mu_r_b"]
+    view = params["view"]
+
+    # Convert clicked mm coords to m and compute field
+    if view == "rz":
+        # coord1 = r (mm), coord2 = z (mm)
+        r_m = coord1 * 1e-3
+        z_m = coord2 * 1e-3
+        # In r-z view, evaluate at (x=r, y=0, z=z)
+        res_a = compute_field(r_m, 0.0, z_m, R_m, L_m, NI, mu_r_a)
+        res_b = compute_field(r_m, 0.0, z_m, R_m, L_m, NI, mu_r_b)
+        loc_str = f"r = {coord1:.1f} mm, z = {coord2:.1f} mm"
+    else:
+        # coord1 = x (mm), coord2 = y (mm)
+        x_m = coord1 * 1e-3
+        y_m = coord2 * 1e-3
+        z_m = params["zslice_mm"] * 1e-3
+        res_a = compute_field(x_m, y_m, z_m, R_m, L_m, NI, mu_r_a)
+        res_b = compute_field(x_m, y_m, z_m, R_m, L_m, NI, mu_r_b)
+        loc_str = f"x = {coord1:.1f} mm, y = {coord2:.1f} mm, z = {params['zslice_mm']:.1f} mm"
+
+    # Build readout table
+    fields = ["Bx", "By", "Bz", "|B|", "|B_coil|", "|B_core|"]
+
+    header = html.Tr([
+        html.Th("Component", style={"padding": "6px 12px"}),
+        html.Th(f"Config A ({params['mat_a']})", style={"padding": "6px 12px"}),
+        html.Th(f"Config B ({params['mat_b']})", style={"padding": "6px 12px"}),
+    ])
+
+    rows = []
+    for f in fields:
+        rows.append(html.Tr([
+            html.Td(f, style={"padding": "4px 12px", "fontWeight": "bold"}),
+            html.Td(f"{res_a[f]:.6e} T", style={"padding": "4px 12px", "fontFamily": "monospace"}),
+            html.Td(f"{res_b[f]:.6e} T", style={"padding": "4px 12px", "fontFamily": "monospace"}),
+        ]))
+
+    table = html.Table(
+        [html.Thead(header), html.Tbody(rows)],
+        style={"borderCollapse": "collapse", "width": "100%",
+               "border": "1px solid #ccc"},
+    )
+
+    return html.Div([
+        html.H4(f"Probe readout at {loc_str}"),
+        table,
+    ])
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
