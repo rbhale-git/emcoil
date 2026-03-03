@@ -2,7 +2,7 @@
 
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, callback, Input, Output, State, no_update
+from dash import Dash, dcc, html, callback, Input, Output, State, ctx, no_update
 
 from emcoil.materials import MATERIAL_PRESETS, get_mu_r
 from emcoil.solver import compute_field, compute_field_grid
@@ -472,20 +472,17 @@ for _pair in SLIDER_INPUT_PAIRS:
     _p = _pair["prefix"]
 
     @callback(
+        Output(f"{_p}-slider", "value"),
         Output(f"{_p}-input", "value"),
         Input(f"{_p}-slider", "value"),
-        prevent_initial_call=True,
-    )
-    def _sync_slider_to_input(val, _prefix=_p):  # noqa: E303
-        return val
-
-    @callback(
-        Output(f"{_p}-slider", "value"),
         Input(f"{_p}-input", "value"),
         prevent_initial_call=True,
     )
-    def _sync_input_to_slider(val, _prefix=_p):  # noqa: E303
-        return val
+    def _sync_slider_input(slider_val, input_val, _prefix=_p):  # noqa: E303
+        trigger = ctx.triggered_id
+        if trigger == f"{_prefix}-slider":
+            return slider_val, slider_val
+        return input_val, input_val
 
 
 # ---------------------------------------------------------------------------
