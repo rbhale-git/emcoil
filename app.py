@@ -219,6 +219,211 @@ def _toggle_zslice_row(view):
 
 
 # ---------------------------------------------------------------------------
+# Callback: Compute field maps
+# ---------------------------------------------------------------------------
+
+def _build_heatmap_rz(R_m, L_m, NI, mu_r, n_grid, label):
+    """Build a Plotly figure with r-z field magnitude heatmap + quiver arrows."""
+    rmax = R_m * 8
+    zmax = L_m * 3
+
+    r_arr = np.linspace(0, rmax, n_grid)
+    z_arr = np.linspace(-zmax, zmax, n_grid)
+
+    Br, Bz, B_mag = compute_field_grid(r_arr, z_arr, R_m, L_m, NI, mu_r)
+
+    # Convert axes to mm for display
+    r_mm = r_arr * 1e3
+    z_mm = z_arr * 1e3
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Heatmap(
+        x=r_mm, y=z_mm, z=B_mag,
+        colorscale="Viridis",
+        colorbar=dict(title="|B| (T)"),
+        hovertemplate="r = %{x:.1f} mm<br>z = %{y:.1f} mm<br>|B| = %{z:.4e} T<extra></extra>",
+    ))
+
+    # Quiver-style arrows (subsampled)
+    skip = max(1, n_grid // 12)
+    for i in range(0, n_grid, skip):
+        for j in range(0, n_grid, skip):
+            mag = np.sqrt(Br[i, j]**2 + Bz[i, j]**2)
+            if mag < 1e-20:
+                continue
+            # Normalize arrow length for visibility
+            arrow_scale = min(rmax * 1e3 * 0.06, zmax * 1e3 * 0.06)
+            dr = Br[i, j] / mag * arrow_scale
+            dz = Bz[i, j] / mag * arrow_scale
+            fig.add_annotation(
+                x=r_mm[j] + dr, y=z_mm[i] + dz,
+                ax=r_mm[j], ay=z_mm[i],
+                xref="x", yref="y", axref="x", ayref="y",
+                showarrow=True,
+                arrowhead=2, arrowsize=1, arrowwidth=1.5,
+                arrowcolor="white",
+            )
+
+    # Solenoid outline (rectangle in r-z plane)
+    R_mm = R_m * 1e3
+    L_mm = L_m * 1e3
+    fig.add_shape(
+        type="rect",
+        x0=0, y0=-L_mm / 2, x1=R_mm, y1=L_mm / 2,
+        line=dict(color="red", width=2, dash="dash"),
+    )
+
+    fig.update_layout(
+        title=f"{label}",
+        xaxis_title="r (mm)",
+        yaxis_title="z (mm)",
+        width=600, height=550,
+        margin=dict(l=60, r=20, t=40, b=60),
+    )
+
+    return fig, B_mag
+
+
+def _build_heatmap_xy(R_m, L_m, NI, mu_r, n_grid, z_slice_m, label):
+    """Build a Plotly figure with x-y field magnitude heatmap at a z-slice."""
+    rmax = R_m * 8
+    x_arr = np.linspace(-rmax, rmax, n_grid)
+    y_arr = np.linspace(-rmax, rmax, n_grid)
+
+    B_mag = np.zeros((n_grid, n_grid))
+    Bx_arr = np.zeros((n_grid, n_grid))
+    By_arr = np.zeros((n_grid, n_grid))
+
+    for i, yv in enumerate(y_arr):
+        for j, xv in enumerate(x_arr):
+            result = compute_field(xv, yv, z_slice_m, R_m, L_m, NI, mu_r)
+            B_mag[i, j] = result["|B|"]
+            Bx_arr[i, j] = result["Bx"]
+            By_arr[i, j] = result["By"]
+
+    # Convert to mm
+    x_mm = x_arr * 1e3
+    y_mm = y_arr * 1e3
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Heatmap(
+        x=x_mm, y=y_mm, z=B_mag,
+        colorscale="Viridis",
+        colorbar=dict(title="|B| (T)"),
+        hovertemplate="x = %{x:.1f} mm<br>y = %{y:.1f} mm<br>|B| = %{z:.4e} T<extra></extra>",
+    ))
+
+    # Quiver arrows
+    skip = max(1, n_grid // 12)
+    arrow_scale = rmax * 1e3 * 0.06
+    for i in range(0, n_grid, skip):
+        for j in range(0, n_grid, skip):
+            mag = np.sqrt(Bx_arr[i, j]**2 + By_arr[i, j]**2)
+            if mag < 1e-20:
+                continue
+            dx = Bx_arr[i, j] / mag * arrow_scale
+            dy = By_arr[i, j] / mag * arrow_scale
+            fig.add_annotation(
+                x=x_mm[j] + dx, y=y_mm[i] + dy,
+                ax=x_mm[j], ay=y_mm[i],
+                xref="x", yref="y", axref="x", ayref="y",
+                showarrow=True,
+                arrowhead=2, arrowsize=1, arrowwidth=1.5,
+                arrowcolor="white",
+            )
+
+    # Solenoid circle outline
+    R_mm = R_m * 1e3
+    theta = np.linspace(0, 2 * np.pi, 100)
+    fig.add_trace(go.Scatter(
+        x=R_mm * np.cos(theta), y=R_mm * np.sin(theta),
+        mode="lines",
+        line=dict(color="red", width=2, dash="dash"),
+        showlegend=False,
+        hoverinfo="skip",
+    ))
+
+    fig.update_layout(
+        title=f"{label} (z = {z_slice_m * 1e3:.1f} mm)",
+        xaxis_title="x (mm)",
+        yaxis_title="y (mm)",
+        xaxis=dict(scaleanchor="y", scaleratio=1),
+        width=600, height=550,
+        margin=dict(l=60, r=20, t=40, b=60),
+    )
+
+    return fig, B_mag
+
+
+@callback(
+    Output("field-map-A", "figure"),
+    Output("field-map-B", "figure"),
+    Output("shared-params-store", "data"),
+    Output("loading-target", "children"),
+    Input("compute-btn", "n_clicks"),
+    State("radius-input", "value"),
+    State("length-input", "value"),
+    State("ampturns-input", "value"),
+    State("material-A", "value"),
+    State("custom-mu-A", "value"),
+    State("material-B", "value"),
+    State("custom-mu-B", "value"),
+    State("view-radio", "value"),
+    State("zslice-input", "value"),
+    State("gridres-input", "value"),
+    prevent_initial_call=True,
+)
+def _compute(n_clicks, radius_mm, length_mm, ampturns,
+             mat_a, custom_mu_a, mat_b, custom_mu_b,
+             view, zslice_mm, gridres):
+    """Compute and display field maps for both configurations."""
+    if n_clicks is None:
+        return no_update, no_update, no_update, no_update
+
+    # Convert mm -> m
+    R_m = radius_mm * 1e-3
+    L_m = length_mm * 1e-3
+    NI = ampturns
+    n_grid = int(gridres)
+
+    # Resolve mu_r for each config
+    mu_r_a = get_mu_r(mat_a, None) if mat_a != "custom" else get_mu_r(None, custom_mu_a)
+    mu_r_b = get_mu_r(mat_b, None) if mat_b != "custom" else get_mu_r(None, custom_mu_b)
+
+    if view == "rz":
+        fig_a, bmag_a = _build_heatmap_rz(R_m, L_m, NI, mu_r_a, n_grid,
+                                           f"Config A ({mat_a}, \u03bc\u1d63={mu_r_a:.4g})")
+        fig_b, bmag_b = _build_heatmap_rz(R_m, L_m, NI, mu_r_b, n_grid,
+                                           f"Config B ({mat_b}, \u03bc\u1d63={mu_r_b:.4g})")
+    else:
+        z_slice_m = zslice_mm * 1e-3
+        fig_a, bmag_a = _build_heatmap_xy(R_m, L_m, NI, mu_r_a, n_grid, z_slice_m,
+                                           f"Config A ({mat_a}, \u03bc\u1d63={mu_r_a:.4g})")
+        fig_b, bmag_b = _build_heatmap_xy(R_m, L_m, NI, mu_r_b, n_grid, z_slice_m,
+                                           f"Config B ({mat_b}, \u03bc\u1d63={mu_r_b:.4g})")
+
+    # Shared colorscale: same zmin/zmax for both
+    global_min = min(float(bmag_a.min()), float(bmag_b.min()))
+    global_max = max(float(bmag_a.max()), float(bmag_b.max()))
+    for fig in (fig_a, fig_b):
+        fig.data[0].zmin = global_min
+        fig.data[0].zmax = global_max
+
+    # Store params for probe callback
+    store_data = {
+        "R_m": R_m, "L_m": L_m, "NI": NI,
+        "mu_r_a": mu_r_a, "mu_r_b": mu_r_b,
+        "mat_a": mat_a, "mat_b": mat_b,
+        "view": view,
+        "zslice_mm": zslice_mm,
+    }
+
+    return fig_a, fig_b, store_data, ""
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
