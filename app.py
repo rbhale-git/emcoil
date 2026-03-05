@@ -15,11 +15,12 @@ MATERIAL_OPTIONS = [{"label": k.replace("-", " ").title(), "value": k}
                     for k in MATERIAL_PRESETS] + [{"label": "Custom", "value": "custom"}]
 
 SLIDER_INPUT_PAIRS = [
-    {"prefix": "radius",   "label": "RADIUS",     "unit": "mm",  "min": 1,    "max": 100,   "step": 1,  "value": 10},
-    {"prefix": "length",   "label": "LENGTH",      "unit": "mm",  "min": 10,   "max": 500,   "step": 1,  "value": 50},
-    {"prefix": "ampturns", "label": "AMP-TURNS",   "unit": "NI",  "min": 10,   "max": 10000, "step": 10, "value": 1000},
-    {"prefix": "zslice",   "label": "Z-SLICE",     "unit": "mm",  "min": -250, "max": 250,   "step": 1,  "value": 0},
-    {"prefix": "gridres",  "label": "GRID RES",    "unit": "pts", "min": 20,   "max": 100,   "step": 1,  "value": 60},
+    {"prefix": "radius",   "label": "RADIUS",     "unit": "mm",  "min": 1,    "max": 100,   "step": 1,    "value": 10},
+    {"prefix": "length",   "label": "LENGTH",      "unit": "mm",  "min": 10,   "max": 500,   "step": 1,    "value": 50},
+    {"prefix": "turns",    "label": "TURNS",        "unit": "N",   "min": 1,    "max": 5000,  "step": 1,    "value": 500},
+    {"prefix": "current",  "label": "CURRENT",      "unit": "A",   "min": 0.1,  "max": 50,    "step": 0.1,  "value": 2},
+    {"prefix": "zslice",   "label": "Z-SLICE",     "unit": "mm",  "min": -250, "max": 250,   "step": 1,    "value": 0},
+    {"prefix": "gridres",  "label": "GRID RES",    "unit": "pts", "min": 20,   "max": 100,   "step": 1,    "value": 60},
 ]
 
 # Plotly dark theme template
@@ -68,8 +69,10 @@ FIELD_COLORSCALE = [
 # Layout helpers
 # ---------------------------------------------------------------------------
 
-def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False):
+def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False,
+                      disabled=False):
     """Instrument-style parameter row: label | slider | value+unit."""
+    label_color = "var(--text-muted)" if not disabled else "var(--border-active)"
     return html.Div(
         id=f"{prefix}-row",
         style={
@@ -78,6 +81,7 @@ def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False):
             "gap": "12px",
             "marginBottom": "8px",
             "padding": "6px 0",
+            "opacity": "0.55" if disabled else "1",
         },
         children=[
             # Label
@@ -87,7 +91,7 @@ def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False):
                     "width": "90px", "flexShrink": "0",
                     "fontFamily": "var(--font-data)", "fontSize": "10px",
                     "fontWeight": "500", "letterSpacing": "0.1em",
-                    "color": "var(--text-muted)",
+                    "color": label_color,
                 },
             ),
             # Slider
@@ -98,6 +102,7 @@ def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False):
                     marks=None,
                     tooltip={"placement": "bottom", "always_visible": False},
                     updatemode="mouseup",
+                    disabled=disabled,
                 ),
                 style={"flex": "1"},
             ),
@@ -108,6 +113,7 @@ def _slider_input_row(prefix, label, unit, mn, mx, step, value, hidden=False):
                     type="number", min=mn, max=mx, step=step, value=value,
                     style={"width": "80px"},
                     debounce=True,
+                    readOnly=disabled,
                 ),
                 html.Span(
                     unit,
@@ -265,9 +271,12 @@ app.layout = html.Div(
                     style={"flex": "1.6", "minWidth": "380px"},
                     children=[
                         html.Span("COIL PARAMETERS", className="panel-label"),
-                        _slider_input_row("radius",   "RADIUS",    "mm",  1,    100,  1,  10),
-                        _slider_input_row("length",   "LENGTH",    "mm",  10,   500,  1,  50),
-                        _slider_input_row("ampturns", "AMP-TURNS", "NI",  10,   10000, 10, 1000),
+                        _slider_input_row("radius",   "RADIUS",    "mm",  1,    100,   1,    10),
+                        _slider_input_row("length",   "LENGTH",    "mm",  10,   500,   1,    50),
+                        _slider_input_row("turns",    "TURNS",     "N",   1,    5000,  1,    500),
+                        _slider_input_row("current",  "CURRENT",   "A",   0.1,  50,    0.1,  2),
+                        _slider_input_row("ampturns", "AMP-TURNS", "NI",  0,    250000, 1, 1000,
+                                          disabled=True),
 
                         # Divider
                         html.Div(style={
@@ -466,7 +475,7 @@ app.layout = html.Div(
 
 
 # ---------------------------------------------------------------------------
-# Callbacks: slider <-> input sync
+# Callbacks: slider <-> input sync (excludes ampturns, which is read-only)
 # ---------------------------------------------------------------------------
 
 for _pair in SLIDER_INPUT_PAIRS:
@@ -484,6 +493,29 @@ for _pair in SLIDER_INPUT_PAIRS:
         if trigger == f"{_prefix}-slider":
             return slider_val, slider_val
         return input_val, input_val
+
+
+# ---------------------------------------------------------------------------
+# Callback: TURNS × CURRENT → AMP-TURNS (read-only product)
+# ---------------------------------------------------------------------------
+
+@callback(
+    Output("ampturns-slider", "value"),
+    Output("ampturns-input", "value"),
+    Input("turns-slider", "value"),
+    Input("turns-input", "value"),
+    Input("current-slider", "value"),
+    Input("current-input", "value"),
+)
+def _update_ampturns(turns_slider, turns_input, current_slider, current_input):
+    """Keep AMP-TURNS = TURNS × CURRENT."""
+    trigger = ctx.triggered_id or ""
+    turns = turns_slider if "slider" in trigger else turns_input
+    current = current_slider if "slider" in trigger else current_input
+    if turns is None or current is None:
+        return no_update, no_update
+    ni = round(float(turns) * float(current), 2)
+    return ni, ni
 
 
 # ---------------------------------------------------------------------------
